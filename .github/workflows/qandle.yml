@@ -2,9 +2,8 @@ name: Qandle Attendance
 
 on:
   schedule:
-    # IST = UTC+5:30
-    - cron: '37 22 * * 1-5'   # Clock IN  — 9:00 AM IST, Mon–Fri
-    - cron: '38 22 * * 1-5'  # Clock OUT — 7:00 PM IST, Mon–Fri
+    - cron: '30 3 * * 1-5'   # Clock IN  — 9:00 AM IST, Mon–Fri
+    - cron: '30 13 * * 1-5'  # Clock OUT — 7:00 PM IST, Mon–Fri
 
   workflow_dispatch:
     inputs:
@@ -22,10 +21,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    env:
+      BASE_URL: https://creospan.qandle.com
+      EMP_CODE: ${{ secrets.QANDLE_EMP_CODE }}
+      PASSWORD: ${{ secrets.QANDLE_PASSWORD }}
 
+    steps:
       - name: Determine mode
         id: mode
         run: |
@@ -37,12 +38,38 @@ jobs:
             echo "mode=out" >> $GITHUB_OUTPUT
           fi
 
-      - name: Run punch script
-        env:
-          QANDLE_EMP_CODE: ${{ secrets.QANDLE_EMP_CODE }}
-          QANDLE_PASSWORD: ${{ secrets.QANDLE_PASSWORD }}
-          QANDLE_BASE_URL: https://creospan.qandle.com
-          QANDLE_LOG_FILE: /dev/stdout
+      - name: Login
+        id: login
         run: |
-          chmod +x ./qandle-punch.sh
-          ./qandle-punch.sh ${{ steps.mode.outputs.mode }}
+          RESPONSE=$(curl -sS \
+            -X POST "${BASE_URL}/auth/login" \
+            -H "Content-Type: application/json" \
+            -d "{\"emp_code\":\"${EMP_CODE}\",\"password\":\"${PASSWORD}\",\"for_clockin\":false}")
+
+          echo "Login response: $RESPONSE"
+
+          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+          if [ "$STATUS" != "success" ]; then
+            echo "Login failed"
+            exit 1
+          fi
+
+          TOKEN=$(echo "$RESPONSE" | jq -r '.data.accessToken')
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "No access token"
+            exit 1
+          fi
+
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+          echo "Login successful"
+
+      - name: Punch ${{ steps.mode.outputs.mode }}
+        run: |
+          RESPONSE=$(curl -sS \
+            -X POST "${BASE_URL}/timeattendance/employee/clockinout" \
+            -H "Authorization: Bearer ${{ steps.login.outputs.token }}" \
+            -H "Content-Type: application/json")
+
+          echo "Punch response: $RESPONSE"
+          echo "Punch ${{ steps.mode.outputs.mode }} done ✓"
