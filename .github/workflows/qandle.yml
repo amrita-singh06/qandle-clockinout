@@ -2,8 +2,8 @@ name: Qandle Attendance
 
 on:
   schedule:
-    - cron: '23 17 * * 1-5'   # Clock IN  — 9:00 AM IST, Mon–Fri
-    - cron: '24 17 * * 1-5'  # Clock OUT — 7:00 PM IST, Mon–Fri
+    - cron: '29 17 * * 1-5'   # Clock IN  — 9:00 AM IST, Mon–Fri
+    - cron: '30 17 * * 1-5'  # Clock OUT — 7:00 PM IST, Mon–Fri
 
   workflow_dispatch:
     inputs:
@@ -32,7 +32,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "mode=${{ github.event.inputs.mode }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event.schedule }}" = "30 3 * * 1-5" ]; then
+          elif [ "${{ github.event.schedule }}" = "29 17 * * 1-5" ]; then
             echo "mode=in" >> $GITHUB_OUTPUT
           else
             echo "mode=out" >> $GITHUB_OUTPUT
