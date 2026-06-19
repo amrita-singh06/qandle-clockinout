@@ -2,19 +2,10 @@ name: Qandle Attendance
 
 on:
   schedule:
-    - cron: '29 17 * * 1-5'   # Clock IN  — 9:00 AM IST, Mon–Fri
-    - cron: '30 17 * * 1-5'  # Clock OUT — 7:00 PM IST, Mon–Fri
+    - cron: '34 17 * * 1-5'   # 9:00 AM IST  Mon–Fri
+    - cron: '35 17 * * 1-5'  # 7:00 PM IST  Mon–Fri
 
   workflow_dispatch:
-    inputs:
-      mode:
-        description: 'in or out'
-        required: true
-        default: 'in'
-        type: choice
-        options:
-          - in
-          - out
 
 jobs:
   punch:
@@ -27,17 +18,6 @@ jobs:
       PASSWORD: ${{ secrets.QANDLE_PASSWORD }}
 
     steps:
-      - name: Determine mode
-        id: mode
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "mode=${{ github.event.inputs.mode }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event.schedule }}" = "29 17 * * 1-5" ]; then
-            echo "mode=in" >> $GITHUB_OUTPUT
-          else
-            echo "mode=out" >> $GITHUB_OUTPUT
-          fi
-
       - name: Login
         id: login
         run: |
@@ -64,7 +44,7 @@ jobs:
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
           echo "Login successful"
 
-      - name: Punch ${{ steps.mode.outputs.mode }}
+      - name: Punch
         run: |
           RESPONSE=$(curl -sS \
             -X POST "${BASE_URL}/timeattendance/employee/clockinout" \
@@ -72,4 +52,4 @@ jobs:
             -H "Content-Type: application/json")
 
           echo "Punch response: $RESPONSE"
-          echo "Punch ${{ steps.mode.outputs.mode }} done ✓"
+          echo "Punch done ✓"
