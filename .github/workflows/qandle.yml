@@ -2,16 +2,14 @@ name: Qandle Attendance
 
 on:
   schedule:
-    # All times are UTC. IST = UTC+5:30
-    # 6:30 PM IST  = 1:00 PM UTC  (adjust clock-out time to your preference)
-    - cron: '0 9 * * 1-5'   # Clock IN  — Mon–Fri 9:00 AM IST
-    - cron: '0 21 * * 1-5'  # Clock OUT — Mon–Fri 9:00 PM IST
+    # IST = UTC+5:30
+    - cron: '37 22 * * 1-5'   # Clock IN  — 9:00 AM IST, Mon–Fri
+    - cron: '38 22 * * 1-5'  # Clock OUT — 7:00 PM IST, Mon–Fri
 
-  # Allow manual trigger for testing
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Clock in or out?'
+        description: 'in or out'
         required: true
         default: 'in'
         type: choice
@@ -20,12 +18,14 @@ on:
           - out
 
 jobs:
-  attendance:
-    name: Clock ${{ github.event.inputs.mode || (github.event.schedule == '30 3 * * 1-5' && 'in' || 'out') }}
+  punch:
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Determine mode
         id: mode
         run: |
@@ -37,102 +37,12 @@ jobs:
             echo "mode=out" >> $GITHUB_OUTPUT
           fi
 
-      - name: Login to Qandle
-        id: login
+      - name: Run punch script
+        env:
+          QANDLE_EMP_CODE: ${{ secrets.QANDLE_EMP_CODE }}
+          QANDLE_PASSWORD: ${{ secrets.QANDLE_PASSWORD }}
+          QANDLE_BASE_URL: https://creospan.qandle.com
+          QANDLE_LOG_FILE: /dev/stdout
         run: |
-          RESPONSE=$(curl -sS --connect-timeout 15 --max-time 30 \
-            -w "\n%{http_code}" \
-            -X POST "${{ vars.QANDLE_BASE_URL }}/auth/login" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "emp_code": "${{ secrets.QANDLE_EMP_CODE }}",
-              "password": "${{ secrets.QANDLE_PASSWORD }}",
-              "for_clockin": false
-            }')
-
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          CODE=$(echo "$RESPONSE" | tail -n1)
-
-          echo "HTTP Status: $CODE"
-
-          if [ "$CODE" != "200" ]; then
-            echo "Login failed with HTTP $CODE"
-            echo "$BODY"
-            exit 1
-          fi
-
-          TOKEN=$(echo "$BODY" | jq -r '.data.accessToken // empty')
-
-          if [ -z "$TOKEN" ]; then
-            echo "No accessToken in response"
-            echo "$BODY"
-            exit 1
-          fi
-
-          # Mask token in logs
-          echo "::add-mask::$TOKEN"
-          echo "token=$TOKEN" >> $GITHUB_OUTPUT
-          echo "Login successful"
-
-      - name: Check current clock status
-        id: status
-        run: |
-          RESPONSE=$(curl -sS --connect-timeout 15 --max-time 30 \
-            -w "\n%{http_code}" \
-            -X GET "${{ vars.QANDLE_BASE_URL }}/timeattendance/employee/clockin-time" \
-            -H "Authorization: Bearer ${{ steps.login.outputs.token }}" \
-            -H "Content-Type: application/json")
-
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          CODE=$(echo "$RESPONSE" | tail -n1)
-
-          echo "Status HTTP: $CODE"
-
-          if [ "$CODE" != "200" ]; then
-            echo "Status check failed — will attempt clock action anyway"
-            echo "skip=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          CLOCK_IN_TIME=$(echo "$BODY" | jq -r '
-            .data.clock_in_time //
-            .clock_in_time //
-            .data.clockInTime //
-            .clockInTime //
-            "0"
-          ')
-
-          echo "clock_in_time=$CLOCK_IN_TIME"
-          MODE="${{ steps.mode.outputs.mode }}"
-
-          if [ "$MODE" = "in" ] && [ "$CLOCK_IN_TIME" != "0" ] && [ -n "$CLOCK_IN_TIME" ]; then
-            echo "Already clocked in. Skipping."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          elif [ "$MODE" = "out" ] && ([ "$CLOCK_IN_TIME" = "0" ] || [ -z "$CLOCK_IN_TIME" ]); then
-            echo "Already clocked out. Skipping."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Clock ${{ steps.mode.outputs.mode }}
-        if: steps.status.outputs.skip != 'true'
-        run: |
-          RESPONSE=$(curl -sS --connect-timeout 15 --max-time 30 \
-            -w "\n%{http_code}" \
-            -X POST "${{ vars.QANDLE_BASE_URL }}/timeattendance/employee/clockinout" \
-            -H "Authorization: Bearer ${{ steps.login.outputs.token }}" \
-            -H "Content-Type: application/json")
-
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          CODE=$(echo "$RESPONSE" | tail -n1)
-
-          echo "Clock HTTP: $CODE"
-          echo "Response: $BODY"
-
-          if [ "$CODE" != "200" ]; then
-            echo "Clock-${{ steps.mode.outputs.mode }} failed"
-            exit 1
-          fi
-
-          echo "Clock-${{ steps.mode.outputs.mode }} successful ✓"
+          chmod +x ./qandle-punch.sh
+          ./qandle-punch.sh ${{ steps.mode.outputs.mode }}
