@@ -1,0 +1,42 @@
+name: Qandle Attendance
+
+on:
+  schedule:
+    # 9:00 AM IST = 03:30 UTC
+    - cron: '30 3 * * 1-5'
+
+    # 8:11 PM IST = 14:41 UTC
+    - cron: '41 14 * * 1-5'
+
+  workflow_dispatch:
+
+jobs:
+  punch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Determine Mode
+        id: mode
+        run: |
+          HOUR=$(date -u +%H)
+
+          if [ "$HOUR" = "03" ]; then
+            echo "MODE=in" >> $GITHUB_ENV
+          else
+            echo "MODE=out" >> $GITHUB_ENV
+          fi
+
+      - name: Run Punch Script
+        env:
+          QANDLE_EMP_CODE: ${{ secrets.QANDLE_EMP_CODE }}
+          QANDLE_PASSWORD: ${{ secrets.QANDLE_PASSWORD }}
+        run: |
+          chmod +x qandle-punch.sh
+          ./qandle-punch.sh $MODE
