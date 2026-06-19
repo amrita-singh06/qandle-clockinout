@@ -2,8 +2,8 @@ name: Qandle Attendance
 
 on:
   schedule:
-    - cron: '41 17 * * 1-5'   # 9:00 AM IST  Mon–Fri
-    - cron: '42 17 * * 1-5'  # 7:00 PM IST  Mon–Fri
+    - cron: '43 17 * * 1-5'   # 9:00 AM IST  Mon–Fri
+    - cron: '44 17 * * 1-5'  # 7:00 PM IST  Mon–Fri
 
   workflow_dispatch:
 
