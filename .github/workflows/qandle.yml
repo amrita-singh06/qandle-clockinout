@@ -2,8 +2,8 @@ name: Qandle Attendance
 
 on:
   schedule:
-    - cron: '18 17 * * 1-5'   # Clock IN  — 9:00 AM IST, Mon–Fri
-    - cron: '19 17 * * 1-5'  # Clock OUT — 7:00 PM IST, Mon–Fri
+    - cron: '23 17 * * 1-5'   # Clock IN  — 9:00 AM IST, Mon–Fri
+    - cron: '24 17 * * 1-5'  # Clock OUT — 7:00 PM IST, Mon–Fri
 
   workflow_dispatch:
     inputs:
